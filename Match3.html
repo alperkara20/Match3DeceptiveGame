@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive UX Experiment: Match-3</title>
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: #1e293b;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --accent: #38bdf8;
+            --gem-1: #ef4444; /* Red */
+            --gem-2: #3b82f6; /* Blue */
+            --gem-3: #10b981; /* Green */
+            --gem-4: #f59e0b; /* Yellow */
+            --gem-5: #8b5cf6; /* Purple */
+            
+            /* Dark Pattern Variables */
+            --dp-bg: rgba(0, 0, 0, 0.9);
+            --dp-danger: #ff003c;
+            --dp-button: #00ff88;
+        }
+
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            background: var(--panel-bg);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #334155;
+        }
+
+        .stat-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-muted);
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent);
+        }
+
+        #moves-val { color: #f43f5e; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+            background: #0b1120;
+            padding: 10px;
+            border-radius: 12px;
+            position: relative;
+        }
+
+        .tile {
+            aspect-ratio: 1;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+
+        .tile:hover {
+            transform: scale(1.05);
+        }
+
+        .tile.selected {
+            transform: scale(0.9);
+            box-shadow: 0 0 0 3px var(--text-main);
+            z-index: 10;
+        }
+
+        .gem-1 { background: var(--gem-1); box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); }
+        .gem-2 { background: var(--gem-2); box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); border-radius: 50%; }
+        .gem-3 { background: var(--gem-3); box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%); }
+        .gem-4 { background: var(--gem-4); box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); border-radius: 4px; }
+        .gem-5 { background: var(--gem-5); box-shadow: inset 0 -4px 0 rgba(0,0,0,0.2); clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);}
+
+        /* --- DECEPTIVE PATTERN UI (MODAL) --- */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--dp-bg);
+            backdrop-filter: blur(8px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .deceptive-modal {
+            background: #111;
+            border: 4px solid var(--dp-danger);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            box-shadow: 0 0 50px rgba(255, 0, 60, 0.4);
+            animation: pulse-border 2s infinite;
+        }
+
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 20px rgba(255, 0, 60, 0.4); }
+            50% { box-shadow: 0 0 60px rgba(255, 0, 60, 0.8); }
+            100% { box-shadow: 0 0 20px rgba(255, 0, 60, 0.4); }
+        }
+
+        .modal-title {
+            color: var(--dp-danger);
+            font-size: 2rem;
+            font-weight: 900;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+        }
+
+        .modal-subtitle {
+            font-size: 1.1rem;
+            color: #fff;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+
+        .timer-box {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #fff;
+            background: var(--dp-danger);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 30px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        /* Visual Interference & False Urgency */
+        .btn-buy {
+            background: var(--dp-button);
+            color: #000;
+            border: none;
+            padding: 20px 30px;
+            font-size: 1.4rem;
+            font-weight: 900;
+            border-radius: 50px;
+            cursor: pointer;
+            width: 100%;
+            text-transform: uppercase;
+            box-shadow: 0 6px 0 #00b35f;
+            transition: transform 0.1s, box-shadow 0.1s;
+            animation: bounce 1s infinite;
+        }
+
+        .btn-buy:active {
+            transform: translateY(6px);
+            box-shadow: 0 0 0 #00b35f;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        /* Confirmshaming */
+        .btn-decline {
+            background: transparent;
+            border: none;
+            color: #555;
+            margin-top: 25px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            text-decoration: underline;
+            transition: color 0.2s;
+            display: block;
+            width: 100%;
+        }
+
+        .btn-decline:hover {
+            color: #888;
+        }
+
+        .telemetry-toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0,0,0,0.8);
+            color: #0f0;
+            font-family: monospace;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="game-container">
+        <div class="header">
+            <div class="stat-box">
+                <span class="stat-label">Score</span>
+                <span class="stat-value" id="score-val">0</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Moves Left</span>
+                <span class="stat-value" id="moves-val">5</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">Premium Gems</span>
+                <span class="stat-value">💎 150</span>
+            </div>
+        </div>
+        <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="modal-overlay" id="modal">
+        <div class="deceptive-modal">
+            <h2 class="modal-title">Wait! Don't Lose It!</h2>
+            <p class="modal-subtitle">You have a MEGA COMBO waiting. Don't let your score die now!</p>
+            <div class="timer-box" id="timer">10.00</div>
+            <button class="btn-buy" id="btn-buy">Use 50 💎 for +5 Moves!</button>
+            <button class="btn-decline" id="btn-decline">No thanks, I prefer to give up and lose all my hard-earned progress.</button>
+        </div>
+    </div>
+
+    <div class="telemetry-toast" id="toast">Telemetry Logged to Console</div>
+
+    <script>
+        const GRID_SIZE = 6;
+        const GEM_TYPES = 5;
+        let score = 0;
+        let moves = 5;
+        let grid = [];
+        let selectedTile = null;
+        let isProcessing = false;
+
+        // Telemetry Data structure
+        let telemetry = {
+            cognitive_age_proxy: null, 
+            pattern_type: 'Near_Miss_Urgency_Confirmshame',
+            modal_start_time: 0,
+            decision_latency_ms: 0,
+            choice_made: null
+        };
+
+        const gridEl = document.getElementById('grid');
+        const scoreEl = document.getElementById('score-val');
+        const movesEl = document.getElementById('moves-val');
+        const modalEl = document.getElementById('modal');
+        const timerEl = document.getElementById('timer');
+        const toastEl = document.getElementById('toast');
+
+        // Initialize Game
+        function initGame() {
+            gridEl.innerHTML = '';
+            grid = [];
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    let type = Math.floor(Math.random() * GEM_TYPES) + 1;
+                    createTile(r, c, type);
+                }
+            }
+            // Clear initial random matches without deducting moves
+            resolveMatches(true);
+        }
+
+        function createTile(r, c, type) {
+            const tile = document.createElement('div');
+            tile.className = `tile gem-${type}`;
+            tile.dataset.r = r;
+            tile.dataset.c = c;
+            tile.dataset.type = type;
+            tile.addEventListener('click', () => handleTileClick(tile));
+            gridEl.appendChild(tile);
+            grid.push(tile);
+        }
+
+        function getTile(r, c) {
+            return grid.find(t => t.dataset.r == r && t.dataset.c == c);
+        }
+
+        async function handleTileClick(tile) {
+            if (isProcessing || moves <= 0) return;
+
+            if (!selectedTile) {
+                selectedTile = tile;
+                tile.classList.add('selected');
+            } else {
+                const r1 = parseInt(selectedTile.dataset.r);
+                const c1 = parseInt(selectedTile.dataset.c);
+                const r2 = parseInt(tile.dataset.r);
+                const c2 = parseInt(tile.dataset.c);
+
+                const isAdjacent = Math.abs(r1 - r2) + Math.abs(c1 - c2) === 1;
+
+                if (isAdjacent) {
+                    isProcessing = true;
+                    selectedTile.classList.remove('selected');
+                    await swapTiles(selectedTile, tile);
+                    
+                    const hasMatches = await resolveMatches();
+                    if (!hasMatches) {
+                        // Swap back if no match
+                        await swapTiles(selectedTile, tile);
+                    } else {
+                        moves--;
+                        movesEl.innerText = moves;
+                        if (moves <= 0) {
+                            setTimeout(triggerDeceptivePattern, 800);
+                        }
+                    }
+                } else {
+                    selectedTile.classList.remove('selected');
+                    selectedTile = tile;
+                    tile.classList.add('selected');
+                }
+                
+                if(!isAdjacent) isProcessing = false;
+            }
+        }
+
+        function swapTiles(t1, t2) {
+            return new Promise(resolve => {
+                const type1 = t1.dataset.type;
+                const type2 = t2.dataset.type;
+                
+                t1.className = `tile gem-${type2}`;
+                t1.dataset.type = type2;
+                
+                t2.className = `tile gem-${type1}`;
+                t2.dataset.type = type1;
+                
+                setTimeout(resolve, 200); // Animation delay fake
+            });
+        }
+
+        async function resolveMatches(isInit = false) {
+            let matched = new Set();
+
+            // Horizontal
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE - 2; c++) {
+                    let t1 = getTile(r, c), t2 = getTile(r, c+1), t3 = getTile(r, c+2);
+                    if (t1.dataset.type === t2.dataset.type && t2.dataset.type === t3.dataset.type) {
+                        matched.add(t1); matched.add(t2); matched.add(t3);
+                    }
+                }
+            }
+            // Vertical
+            for (let c = 0; c < GRID_SIZE; c++) {
+                for (let r = 0; r < GRID_SIZE - 2; r++) {
+                    let t1 = getTile(r, c), t2 = getTile(r+1, c), t3 = getTile(r+2, c);
+                    if (t1.dataset.type === t2.dataset.type && t2.dataset.type === t3.dataset.type) {
+                        matched.add(t1); matched.add(t2); matched.add(t3);
+                    }
+                }
+            }
+
+            if (matched.size === 0) {
+                isProcessing = false;
+                return false;
+            }
+
+            matched.forEach(t => {
+                t.className = 'tile'; // clear visual
+                t.dataset.type = 0;
+            });
+
+            if (!isInit) {
+                score += matched.size * 10;
+                scoreEl.innerText = score;
+            }
+
+            await fillHoles();
+            await resolveMatches(isInit); // cascade
+            return true;
+        }
+
+        function fillHoles() {
+            return new Promise(resolve => {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    let emptySlots = 0;
+                    for (let r = GRID_SIZE - 1; r >= 0; r--) {
+                        let t = getTile(r, c);
+                        if (t.dataset.type == 0) {
+                            emptySlots++;
+                        } else if (emptySlots > 0) {
+                            let target = getTile(r + emptySlots, c);
+                            target.dataset.type = t.dataset.type;
+                            target.className = t.className;
+                            t.dataset.type = 0;
+                            t.className = 'tile';
+                        }
+                    }
+                    for (let r = 0; r < emptySlots; r++) {
+                        let t = getTile(r, c);
+                        let type = Math.floor(Math.random() * GEM_TYPES) + 1;
+                        t.dataset.type = type;
+                        t.className = `tile gem-${type}`;
+                    }
+                }
+                setTimeout(resolve, 300);
+            });
+        }
+
+        // --- DECEPTIVE PATTERN EXPERIMENT LOGIC ---
+
+        let countdownInterval;
+
+        function triggerDeceptivePattern() {
+            modalEl.classList.add('active');
+            telemetry.modal_start_time = Date.now();
+            
+            let timeLeft = 10.00;
+            timerEl.innerText = timeLeft.toFixed(2);
+            timerEl.style.color = '#fff';
+
+            countdownInterval = setInterval(() => {
+                timeLeft -= 0.01;
+                if(timeLeft <= 0) {
+                    timeLeft = 0;
+                    clearInterval(countdownInterval);
+                    logTelemetry('timeout');
+                }
+                timerEl.innerText = timeLeft.toFixed(2);
+                
+                // Panic color change
+                if(timeLeft < 3) timerEl.style.color = '#ff0000';
+            }, 10);
+        }
+
+        document.getElementById('btn-buy').addEventListener('click', () => {
+            logTelemetry('succumbed_to_pattern_bought_moves');
+            moves += 5;
+            movesEl.innerText = moves;
+            closeModal();
+        });
+
+        document.getElementById('btn-decline').addEventListener('click', () => {
+            logTelemetry('resisted_pattern_declined');
+            // reset game logic for next trial
+            score = 0;
+            scoreEl.innerText = score;
+            moves = 5;
+            movesEl.innerText = moves;
+            initGame();
+            closeModal();
+        });
+
+        function closeModal() {
+            clearInterval(countdownInterval);
+            modalEl.classList.remove('active');
+        }
+
+        function logTelemetry(choice) {
+            telemetry.decision_latency_ms = Date.now() - telemetry.modal_start_time;
+            telemetry.choice_made = choice;
+            
+            console.log("=== EXPERIMENT TELEMETRY LOGGED ===");
+            console.table(telemetry);
+
+            // Visual feedback for researcher
+            toastEl.style.opacity = 1;
+            setTimeout(() => { toastEl.style.opacity = 0; }, 3000);
+
+            if(choice === 'timeout') {
+                score = 0; scoreEl.innerText = score;
+                moves = 5; movesEl.innerText = moves;
+                initGame();
+                closeModal();
+            }
+        }
+
+        // Start
+        initGame();
+
+    </script>
+</body>
+</html>
